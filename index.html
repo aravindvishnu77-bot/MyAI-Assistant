@@ -137,5 +137,181 @@
   <button id="talkBtn">
     🎙️ Talk to me
   </button>
+  <div id="text"></div>
 
-  < 
+  <div class="controls">
+    <select id="language">
+      <option value="en-US">English</option>
+      <option value="ml-IN">Malayalam</option>
+    </select>
+  </div>
+
+  <div class="hint">
+    Your AI answer is spoken back to you.
+  </div>
+
+</div>
+
+<script>
+const API_URL =
+  "https://myai-assistant-8imo.onrender.com/api/chat";
+
+const SpeechRecognition =
+  window.SpeechRecognition ||
+  window.webkitSpeechRecognition;
+
+const statusEl = document.getElementById("status");
+const textEl = document.getElementById("text");
+const talkBtn = document.getElementById("talkBtn");
+const orb = document.getElementById("orb");
+const language = document.getElementById("language");
+
+if (!SpeechRecognition) {
+
+  statusEl.innerText =
+    "Speech recognition is not supported in this browser.";
+
+  talkBtn.disabled = true;
+
+} else {
+
+  const recognition = new SpeechRecognition();
+
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  talkBtn.addEventListener("click", function () {
+
+    recognition.lang = language.value;
+
+    statusEl.innerText = "Listening... 🎙️";
+    textEl.innerText = "";
+
+    orb.classList.add("listening");
+    talkBtn.disabled = true;
+
+    try {
+      recognition.start();
+    } catch (error) {
+      console.log(error);
+    }
+
+  });
+
+  recognition.onresult = async function(event) {
+
+    const command =
+      event.results[0][0].transcript.trim();
+
+    textEl.innerText =
+      "You: " + command;
+
+    statusEl.innerText =
+      "Thinking... 🤖";
+
+    await askAI(command);
+  };
+
+  recognition.onerror = function(event) {
+
+    console.log("Speech error:", event.error);
+
+    orb.classList.remove("listening");
+    talkBtn.disabled = false;
+
+    statusEl.innerText =
+      "Microphone error: " + event.error;
+  };
+
+  recognition.onend = function() {
+
+    orb.classList.remove("listening");
+
+    if (statusEl.innerText === "Listening... 🎙️") {
+      statusEl.innerText = "Ready";
+    }
+
+    talkBtn.disabled = false;
+  };
+}
+
+async function askAI(message) {
+
+  try {
+
+    const response = await fetch(API_URL, {
+
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json"
+      },
+
+      body: JSON.stringify({
+        message: message,
+        language: language.value
+      })
+
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.error || "Server error"
+      );
+    }
+
+    const answer =
+      data.answer ||
+      "I couldn't generate an answer.";
+
+    textEl.innerText +=
+      "\n\nAI: " + answer;
+
+    speak(answer, language.value);
+
+  } catch (error) {
+
+    console.error(error);
+
+    statusEl.innerText =
+      "Connection problem";
+
+    textEl.innerText +=
+      "\n\n" + error.message;
+
+    orb.classList.remove("listening");
+    talkBtn.disabled = false;
+  }
+}
+
+function speak(text, lang) {
+
+  speechSynthesis.cancel();
+
+  const voice =
+    new SpeechSynthesisUtterance(text);
+
+  voice.lang = lang;
+  voice.rate = 1;
+  voice.pitch = 1;
+
+  statusEl.innerText =
+    "Speaking... 🔊";
+
+  voice.onend = function() {
+
+    statusEl.innerText =
+      "Ready for your next command";
+
+    orb.classList.remove("listening");
+    talkBtn.disabled = false;
+  };
+
+  speechSynthesis.speak(voice);
+}
+</script>
+
+</body>
+</html>
