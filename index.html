@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My AI Assistant</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #050505;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 500px;
+      padding: 30px;
+    }
+
+    h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    #status {
+      color: #aaa;
+      margin-bottom: 50px;
+    }
+
+    .orb {
+      width: 190px;
+      height: 190px;
+      margin: auto;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle at 35% 30%,
+        #ffffff,
+        #00c8ff 20%,
+        #0066ff 45%,
+        #6a00ff 70%,
+        #ff00cc
+      );
+      box-shadow:
+        0 0 30px #008cff,
+        0 0 80px #5c00ff;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.08);
+      }
+    }
+
+    button {
+      margin-top: 55px;
+      padding: 18px 35px;
+      border: none;
+      border-radius: 50px;
+      background: white;
+      color: black;
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    #text {
+      margin-top: 35px;
+      min-height: 50px;
+      color: #ddd;
+      font-size: 18px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="app">
+
+    <h1>My AI Assistant</h1>
+
+    <div id="status">Tap the button and speak</div>
+
+    <div class="orb"></div>
+
+    <button onclick="startListening()">
+      🎙️ Talk to me
+    </button>
+
+    <div id="text"></div>
+
+  </div>
+
+<script>
+
+  const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+  const recognition = new SpeechRecognition();
+
+  recognition.lang = "en-US";
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  function startListening() {
+
+    document.getElementById("status").innerText =
+      "Listening... 🎙️";
+
+    recognition.start();
+  }
+
+  recognition.onresult = function(event) {
+
+    const command =
+      event.results[0][0].transcript;
+
+    document.getElementById("text").innerText =
+      "You: " + command;
+
+    respond(command);
+  };
+
+  recognition.onerror = function() {
+
+    document.getElementById("status").innerText =
+      "Sorry, I couldn't hear you.";
+  };
+
+  function respond(command) {
+
+    command = command.toLowerCase();
+
+    let answer = "";
+
+    if (command.includes("hello") ||
+        command.includes("hi")) {
+
+      answer = "Hello! How can I help you?";
+
+    } else if (command.includes("time")) {
+
+      answer = "The time is " +
+        new Date().toLocaleTimeString();
+
+    } else if (command.includes("date")) {
+
+      answer = "Today is " +
+        new Date().toLocaleDateString();
+
+    } else if (command.includes("youtube")) {
+
+      answer = "Opening YouTube.";
+
+      window.open(
+        "https://youtube.com",
+        "_blank"
+      );
+
+    } else if (command.includes("google")) {
+
+      answer = "Opening Google.";
+
+      window.open(
+        "https://google.com",
+        "_blank"
+      );
+
+    } else {
+
+      answer =
+        "I heard you say: " + command;
+    }
+
+    speak(answer);
+  }
+
+  function speak(text) {
+
+    document.getElementById("status").innerText =
+      "Speaking... 🔊";
+
+    const voice =
+      new SpeechSynthesisUtterance(text);
+
+    voice.rate = 1;
+    voice.pitch = 1;
+
+    voice.onend = function() {
+
+      document.getElementById("status").innerText =
+        "Ready for your next command";
+    };
+
+    speechSynthesis.speak(voice);
+  }
+
+</script>
+
+</body>
+</html>
