@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>My AI Assistant</title>
+  <title>Nova AI</title>
 
   <style>
     * { box-sizing: border-box; }
@@ -27,7 +27,7 @@
     }
 
     h1 {
-      font-size: 32px;
+      font-size: 34px;
       margin: 0 0 10px;
     }
 
@@ -56,33 +56,24 @@
 
     .orb.listening {
       animation: pulse .8s infinite;
-      box-shadow: 0 0 45px #00d9ff, 0 0 110px #5c00ff;
+      box-shadow:
+        0 0 45px #00d9ff,
+        0 0 110px #5c00ff;
     }
 
     @keyframes pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.08); }
-    }
+      0%, 100% {
+        transform: scale(1);
+      }
 
-    button {
-      margin-top: 45px;
-      padding: 18px 35px;
-      border: 0;
-      border-radius: 50px;
-      background: #fff;
-      color: #000;
-      font-size: 18px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      opacity: .6;
+      50% {
+        transform: scale(1.08);
+      }
     }
 
     #text {
       margin-top: 28px;
-      min-height: 50px;
+      min-height: 70px;
       color: #ddd;
       font-size: 18px;
       line-height: 1.5;
@@ -112,280 +103,559 @@
 
 <body>
 
-  <div class="app">
+<div class="app">
 
-    <h1>My AI Assistant</h1>
+  <h1>Nova AI</h1>
 
-    <div id="status">Tap the button and speak</div>
-
-    <div id="orb" class="orb"></div>
-
-    <button id="talkBtn">🎙️ Talk to me</button>
-
-    <div id="text"></div>
-
-    <div class="controls">
-      <select id="language">
-        <option value="en-US">English</option>
-        <option value="ml-IN">Malayalam</option>
-      </select>
-    </div>
-
-    <div class="hint">
-      Your AI answer is spoken back to you.
-    </div>
-
+  <div id="status">
+    Starting Nova...
   </div>
 
-  <script>
+  <div id="orb" class="orb"></div>
 
-    // YOUR RENDER BACKEND
-    const API_URL =
-      "https://myai-assistant-8imo.onrender.com/api/chat";
+  <div id="text"></div>
 
-    const SpeechRecognition =
-      window.SpeechRecognition ||
-      window.webkitSpeechRecognition;
+  <div class="controls">
+    <select id="language">
+      <option value="en-US">English</option>
+      <option value="ml-IN">Malayalam</option>
+    </select>
+  </div>
 
-    const statusEl =
-      document.getElementById("status");
+  <div class="hint">
+    Say “Hey Nova” to talk. No button needed.
+  </div>
 
-    const textEl =
-      document.getElementById("text");
+</div>
 
-    const talkBtn =
-      document.getElementById("talkBtn");
+<script>
 
-    const orb =
-      document.getElementById("orb");
-
-    const language =
-      document.getElementById("language");
+const API_URL =
+  "https://myai-assistant-8imo.onrender.com/api/chat";
 
 
-    // Check microphone support
-    if (!SpeechRecognition) {
-
-      statusEl.innerText =
-        "Speech recognition is not supported in this browser.";
-
-      talkBtn.disabled = true;
-
-    } else {
-
-      const recognition =
-        new SpeechRecognition();
-
-      recognition.continuous = false;
-      recognition.interimResults = false;
+const SpeechRecognition =
+  window.SpeechRecognition ||
+  window.webkitSpeechRecognition;
 
 
-      // TALK BUTTON
-      talkBtn.addEventListener("click", function () {
+const statusEl =
+  document.getElementById("status");
 
-        statusEl.innerText =
-          "Listening... 🎙️";
+const textEl =
+  document.getElementById("text");
 
-        textEl.innerText = "";
+const orb =
+  document.getElementById("orb");
 
-        orb.classList.add("listening");
+const language =
+  document.getElementById("language");
 
-        talkBtn.disabled = true;
 
-        recognition.lang =
-          language.value;
+let recognition = null;
+let restarting = false;
 
-        try {
 
-          recognition.start();
+// -------------------------
+// STATUS
+// -------------------------
 
-        } catch (error) {
+function setStatus(message) {
+  statusEl.innerText = message;
+}
 
-          console.log(error);
 
-          statusEl.innerText =
-            "Please try again.";
+// -------------------------
+// NORMALIZE TEXT
+// -------------------------
 
-          talkBtn.disabled = false;
+function normalize(text) {
 
-          orb.classList.remove("listening");
+  return text
+    .toLowerCase()
+    .replace(/[.,!?;:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+}
+
+
+// -------------------------
+// CHECK HEY NOVA
+// -------------------------
+
+function hasWakeWord(text) {
+
+  const value = normalize(text);
+
+  return (
+    value.includes("hey nova") ||
+    value.includes("hi nova") ||
+    value.includes("hey no va") ||
+    value.includes("ഹേ നോവ") ||
+    value.includes("ഹേയ് നോവ")
+  );
+
+}
+
+
+// -------------------------
+// REMOVE HEY NOVA
+// -------------------------
+
+function removeWakeWord(text) {
+
+  return text
+
+    .replace(/hey[\s,]*nova/ig, "")
+
+    .replace(/hi[\s,]*nova/ig, "")
+
+    .replace(
+      /hey[\s,]*no[\s-]*va/ig,
+      ""
+    )
+
+    .replace(
+      /ഹേയ്?\s*നോവ/ig,
+      ""
+    )
+
+    .trim();
+
+}
+
+
+// -------------------------
+// START LISTENING
+// -------------------------
+
+function startListening() {
+
+  if (!recognition || restarting) {
+    return;
+  }
+
+  try {
+
+    recognition.lang =
+      language.value;
+
+    recognition.start();
+
+  } catch (error) {
+
+    console.log(error);
+
+  }
+
+}
+
+
+// -------------------------
+// SPEECH SUPPORT
+// -------------------------
+
+if (!SpeechRecognition) {
+
+  setStatus(
+    "Speech recognition is not supported."
+  );
+
+} else {
+
+  recognition =
+    new SpeechRecognition();
+
+
+  recognition.continuous = true;
+
+  recognition.interimResults = false;
+
+  recognition.maxAlternatives = 3;
+
+
+  // -------------------------
+  // START
+  // -------------------------
+
+  recognition.onstart =
+    function() {
+
+      restarting = false;
+
+      orb.classList.add(
+        "listening"
+      );
+
+      setStatus(
+        'Listening… say "Hey Nova"'
+      );
+
+    };
+
+
+  // -------------------------
+  // RESULT
+  // -------------------------
+
+  recognition.onresult =
+    async function(event) {
+
+      for (
+        let i = event.resultIndex;
+        i < event.results.length;
+        i++
+      ) {
+
+        if (
+          !event.results[i].isFinal
+        ) {
+          continue;
         }
 
-      });
 
-
-      // SPEECH RESULT
-      recognition.onresult =
-        async function(event) {
-
-          const command =
-            event.results[0][0]
+        const heard =
+          event.results[i][0]
             .transcript
             .trim();
 
-          textEl.innerText =
-            "You: " + command;
 
-          statusEl.innerText =
-            "Thinking... 🤖";
-
-          await askAI(command);
-
-        };
+        console.log(
+          "Heard:",
+          heard
+        );
 
 
-      // SPEECH ERROR
-      recognition.onerror =
-        function(event) {
+        // Wait for Hey Nova
 
-          console.log(
-            "Speech error:",
-            event.error
-          );
+        if (
+          !hasWakeWord(heard)
+        ) {
 
-          orb.classList.remove("listening");
-
-          talkBtn.disabled = false;
-
-          statusEl.innerText =
-            "Microphone error: " +
-            event.error;
-
-        };
-
-
-      // SPEECH END
-      recognition.onend =
-        function() {
-
-          orb.classList.remove("listening");
-
-          if (
-            statusEl.innerText ===
-            "Listening... 🎙️"
-          ) {
-
-            statusEl.innerText =
-              "Ready";
-
-          }
-
-          talkBtn.disabled = false;
-
-        };
-
-    }
-
-
-    // SEND MESSAGE TO AI
-    async function askAI(message) {
-
-      try {
-
-        const response =
-          await fetch(API_URL, {
-
-            method: "POST",
-
-            headers: {
-              "Content-Type": "application/json"
-            },
-
-            body: JSON.stringify({
-
-              message: message,
-
-              language: language.value
-
-            })
-
-          });
-
-
-        const data =
-          await response.json();
-
-
-        if (!response.ok) {
-
-          throw new Error(
-            data.error ||
-            "Server error"
-          );
+          continue;
 
         }
 
 
-        const answer =
-          data.answer ||
-          "I couldn't generate an answer.";
+        // Remove wake word
+
+        const command =
+          removeWakeWord(
+            heard
+          );
 
 
-        textEl.innerText +=
-          "\n\nAI: " + answer;
+        // If user only said Hey Nova
+
+        if (!command) {
+
+          setStatus(
+            "Yes? I'm listening..."
+          );
+
+          speak(
+            "Yes, I am listening.",
+            language.value
+          );
+
+          continue;
+
+        }
 
 
-        speak(
-          answer,
-          language.value
+        // Show user command
+
+        textEl.innerText =
+          "You: " + command;
+
+
+        setStatus(
+          "Thinking... 🤖"
         );
 
 
-      } catch (error) {
+        try {
 
-        console.error(error);
+          recognition.stop();
 
-        statusEl.innerText =
-          "Connection problem";
+        } catch (error) {}
 
-        textEl.innerText +=
-          "\n\n" + error.message;
 
-        orb.classList.remove("listening");
-
-        talkBtn.disabled = false;
+        await askAI(
+          command
+        );
 
       }
 
+    };
+
+
+  // -------------------------
+  // ERROR
+  // -------------------------
+
+  recognition.onerror =
+    function(event) {
+
+      console.log(
+        "Speech error:",
+        event.error
+      );
+
+
+      orb.classList.remove(
+        "listening"
+      );
+
+
+      if (
+        event.error ===
+          "not-allowed" ||
+
+        event.error ===
+          "service-not-allowed"
+      ) {
+
+        setStatus(
+          "Please allow microphone permission."
+        );
+
+        return;
+
+      }
+
+
+      restartListening();
+
+    };
+
+
+  // -------------------------
+  // END
+  // -------------------------
+
+  recognition.onend =
+    function() {
+
+      orb.classList.remove(
+        "listening"
+      );
+
+
+      restartListening();
+
+    };
+
+
+  // -------------------------
+  // RESTART
+  // -------------------------
+
+  function restartListening() {
+
+    if (restarting) {
+      return;
     }
 
 
-    // SPEAK AI ANSWER
-    function speak(text, lang) {
-
-      speechSynthesis.cancel();
-
-      const voice =
-        new SpeechSynthesisUtterance(text);
-
-      voice.lang = lang;
-
-      voice.rate = 1;
-
-      voice.pitch = 1;
-
-      statusEl.innerText =
-        "Speaking... 🔊";
+    restarting = true;
 
 
-      voice.onend =
-        function() {
+    setTimeout(
+      function() {
 
-          statusEl.innerText =
-            "Ready for your next command";
+        restarting = false;
 
-          orb.classList.remove("listening");
+        startListening();
 
-          talkBtn.disabled = false;
+      },
+      1000
+    );
 
-        };
+  }
 
 
-      speechSynthesis.speak(voice);
+  // Start automatically
+
+  setTimeout(
+    function() {
+
+      startListening();
+
+    },
+    1000
+  );
+
+}
+
+
+// -------------------------
+// ASK AI
+// -------------------------
+
+async function askAI(message) {
+
+  try {
+
+    const response =
+      await fetch(
+        API_URL,
+        {
+
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body: JSON.stringify({
+
+            message: message,
+
+            language:
+              language.value
+
+          })
+
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        data.error ||
+        "Server error"
+      );
 
     }
 
-  </script>
+
+    const answer =
+      data.answer ||
+      "I couldn't generate an answer.";
+
+
+    textEl.innerText +=
+      "\n\nNova: " +
+      answer;
+
+
+    speak(
+      answer,
+      language.value
+    );
+
+
+  } catch (error) {
+
+    console.error(error);
+
+
+    textEl.innerText +=
+      "\n\n" +
+      error.message;
+
+
+    setStatus(
+      "Connection problem"
+    );
+
+
+    restartListening();
+
+  }
+
+}
+
+
+// -------------------------
+// SPEAK
+// -------------------------
+
+function speak(
+  text,
+  lang
+) {
+
+  speechSynthesis.cancel();
+
+
+  const voice =
+    new SpeechSynthesisUtterance(
+      text
+    );
+
+
+  voice.lang = lang;
+
+  voice.rate = 1;
+
+  voice.pitch = 1;
+
+
+  setStatus(
+    "Speaking... 🔊"
+  );
+
+
+  voice.onend =
+    function() {
+
+      setStatus(
+        'Say "Hey Nova"'
+      );
+
+
+      orb.classList.remove(
+        "listening"
+      );
+
+
+      setTimeout(
+        startListening,
+        500
+      );
+
+    };
+
+
+  speechSynthesis.speak(
+    voice
+  );
+
+}
+
+
+// -------------------------
+// LANGUAGE CHANGE
+// -------------------------
+
+language.addEventListener(
+  "change",
+  function() {
+
+    if (!recognition) {
+      return;
+    }
+
+
+    try {
+
+      recognition.stop();
+
+    } catch (error) {}
+
+  }
+);
+
+</script>
 
 </body>
 </html>
